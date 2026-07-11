@@ -1,5 +1,7 @@
-"""Fetch icam images via ZenRows, resize, save into repo. Resumable (skips existing)."""
-import json, os, sys, time, io, hashlib, urllib.parse, subprocess
+"""Fetch icam images via ZenRows, resize, save into repo. Resumable.
+Modes: (a) ITEMS env = JSON [{src,key},...] -> fetch just those (n8n on-demand)
+       (b) default -> fetch manifest.json entries not yet present."""
+import json, os, sys, time, io, urllib.parse, subprocess
 import concurrent.futures as cf
 import requests
 from PIL import Image
@@ -11,9 +13,15 @@ MAX_DIM = 2048
 TIME_BUDGET = float(os.environ.get("TIME_BUDGET_H", "5.2")) * 3600
 t0 = time.time()
 
-manifest = json.load(open("manifest.json"))
+items_env = os.environ.get("ITEMS", "").strip()
+if items_env:
+    manifest = json.loads(items_env)
+    mode = "items"
+else:
+    manifest = json.load(open("manifest.json"))
+    mode = "manifest"
 todo = [m for m in manifest if not os.path.exists(m["key"])]
-print(f"total={len(manifest)} todo={len(todo)}", flush=True)
+print(f"mode={mode} total={len(manifest)} todo={len(todo)}", flush=True)
 
 def sniff(b):
     if b[:3] == b'\xff\xd8\xff': return "jpg"
@@ -64,6 +72,6 @@ with cf.ThreadPoolExecutor(max_workers=WORKERS) as ex:
             for fu in futs: fu.cancel()
             break
 commit_push(batch_ct)
-remaining = len([m for m in manifest if not os.path.exists(m["key"])])
-print(f"RUN SUMMARY: done={done} failed={fail} remaining={remaining}", flush=True)
+remaining = 0 if mode == "items" else len([m for m in manifest if not os.path.exists(m["key"])])
+print(f"RUN SUMMARY: mode={mode} done={done} failed={fail} remaining={remaining}", flush=True)
 with open("remaining.txt","w") as f: f.write(str(remaining))
