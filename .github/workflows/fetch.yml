@@ -1,6 +1,11 @@
 name: fetch-images
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      items:
+        description: 'Optional JSON list of {src,key} to fetch on demand'
+        required: false
+        default: ''
 permissions:
   contents: write
 concurrency:
@@ -27,6 +32,7 @@ jobs:
           ZENROWS_KEY: ${{ secrets.ZENROWS_KEY }}
           WORKERS: "8"
           TIME_BUDGET_H: "5.2"
+          ITEMS: ${{ github.event.inputs.items }}
         run: python fetch_images.py
       - name: self-redispatch if incomplete
         if: always()
